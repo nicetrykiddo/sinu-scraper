@@ -20,12 +20,10 @@ const MAILTO_REGEX = /^mailto:/i;
 
 const TEL_REGEX = /<a[^>]+href=["']tel:([^"']+)["'][^>]*>/gi;
 const IND_REGEX = /(?:\+91|91|0)[\s-]?[6-9]\d{9}/g;
-// const phoneRegextest = /\b(?:\+|00)?[ ()+.-]*(?:\d[ ()+.-]*){10}\b/g;
-// const phoneRegex =
-//   /(?=(?:.*\d){10}(?!.*\d))(?:\+|00)[0-9]{1,3}(?:[ \-.]?\(?0\)?[0-9]{1,4})*(?:[ \-.]?[0-9]+)+(?:\s*(?:x|ext|extension)\s*\d{1,5})?/gi;
-
-// const PHONE_REGEX =
-//   /^((\+ ?)?(\(\d{1,5}\)[ \-.]?)?\d+([ \-.]?\d+)*)(\s*(?:x|ext)\s*\d{1,5})?$/;
+const US_REGEX = /\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})/g;
+const INTERNATIONAL_REGEX = /\+\d{1,3}[-.\s]?\d{1,14}(?:[-.\s]?\d{1,4}){1,3}/g;
+const CONTACT_REGEX =
+  /(?:TTY|Fax|Tel|Phone|Mobile):\s*(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}/gi;
 
 async function currentTab() {
   let queryOptions = { active: true, currentWindow: true };
