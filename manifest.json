@@ -16,5 +16,6 @@
     "default_title": "sInuSoid sPonser",
     "default_popup": "popup/index.html"
   },
-  "permissions": ["scripting", "activeTab", "downloads"]
+  "permissions": ["scripting", "activeTab", "downloads"],
+  "host_permissions": ["https://services.postcodeanywhere.co.uk/*"]
 }
