@@ -105,7 +105,6 @@ async function scanPage(tabId) {
     const validatedEmails = [];
     const validatedPhones = [];
 
-    // Validate new emails with proper async handling
     for (const email of newEmails) {
       try {
         if (autoEmails.includes(email)) {
@@ -129,7 +128,6 @@ async function scanPage(tabId) {
       }
     }
 
-    // Validate new phones with proper async handling
     for (const phone of newPhones) {
       try {
         if (autoPhones.includes(phone)) {
@@ -156,7 +154,6 @@ async function scanPage(tabId) {
     console.log(`Final validated emails: ${validatedEmails}`);
     console.log(`Final validated phones: ${validatedPhones}`);
 
-    // Only send notifications if we have validated contacts
     if (validatedEmails.length > 0 || validatedPhones.length > 0) {
       try {
         await chrome.scripting.executeScript({
@@ -200,10 +197,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
       await injectNotificationSystem(tabId);
 
-      // Initial scan after a short delay
       setTimeout(() => scanPage(tabId), 1000);
 
-      // Set up periodic scanning
       const intervalId = setInterval(() => scanPage(tabId), 5000);
       activeTabScans.set(tabId, intervalId);
     } catch (error) {
