@@ -129,4 +129,26 @@ async function getPhones(pageContent) {
 
   console.log("valid emails: ", validEmails);
   console.log("valid phones: ", validPhones);
+
+  // Display in UI
+  const emailListElement = document.getElementById("email-list");
+  const phoneListElement = document.getElementById("phone-list");
+
+  // Clear old content if any
+  emailListElement.innerHTML = "";
+  phoneListElement.innerHTML = "";
+
+  // Add valid emails to UI
+  validEmails.forEach((email) => {
+    const li = document.createElement("li");
+    li.textContent = email;
+    emailListElement.appendChild(li);
+  });
+
+  // Add valid phones to UI
+  validPhones.forEach((phone) => {
+    const li = document.createElement("li");
+    li.textContent = phone;
+    phoneListElement.appendChild(li);
+  });
 })();
