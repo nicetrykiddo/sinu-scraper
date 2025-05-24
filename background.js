@@ -236,3 +236,22 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     tabValidatedContacts.delete(tabId);
   }
 });
+
+// Message handler for popup requests
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "getValidatedContacts") {
+    const tabId = message.tabId;
+    const tabContacts = tabValidatedContacts.get(tabId);
+
+    if (tabContacts) {
+      sendResponse({
+        emails: Array.from(tabContacts.emails),
+        phones: Array.from(tabContacts.phones),
+      });
+    } else {
+      sendResponse({ emails: [], phones: [] });
+    }
+
+    return true; // Keep the message channel open for async response
+  }
+});
