@@ -8,6 +8,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -16,6 +20,15 @@
     "default_title": "sInuSoid sPonser",
     "default_popup": "popup/index.html"
   },
-  "permissions": ["scripting", "activeTab", "downloads"],
-  "host_permissions": ["https://services.postcodeanywhere.co.uk/*"]
+  "permissions": ["scripting", "activeTab", "downloads", "tabs"],
+  "host_permissions": [
+    "https://services.postcodeanywhere.co.uk/*",
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["styles/notifications.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

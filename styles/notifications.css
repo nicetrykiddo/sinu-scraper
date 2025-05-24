@@ -1,0 +1,179 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+.notification-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+.notification {
+  background: #0a0a0a;
+  border: 1.5px solid;
+  border-radius: 12px;
+  padding: 18px 20px;
+  color: #ffffff;
+  font-family: "JetBrains Mono", "SF Mono", "Monaco", "Inconsolata", "Fira Code",
+    monospace;
+  font-size: 15px;
+  font-weight: 500;
+  width: 320px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  transform: translateX(100%) scale(0.9);
+  opacity: 0;
+  animation: slideInBounce 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transition: all 0.3s ease;
+}
+
+.notification.phone {
+  border-color: #00ff88;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.3), 0 0 40px rgba(0, 255, 136, 0.1),
+    inset 0 0 20px rgba(0, 255, 136, 0.05);
+  color: #00ff88;
+}
+
+.notification.phone::after {
+  content: "📞";
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 18px;
+  opacity: 0.7;
+}
+
+.notification.email {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.3),
+    0 0 40px rgba(255, 107, 107, 0.1), inset 0 0 20px rgba(255, 107, 107, 0.05);
+  color: #ff6b6b;
+}
+
+.notification.email::after {
+  content: "📧";
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 18px;
+  opacity: 0.7;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  animation: pulse 2s infinite;
+}
+
+.notification-content {
+  word-break: break-all;
+  line-height: 1.5;
+  font-weight: 400;
+  margin-right: 35px;
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+.notification.fadeOut {
+  animation: slideOutBounce 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards;
+}
+
+@keyframes slideInBounce {
+  0% {
+    transform: translateX(100%) scale(0.9);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-8px) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutBounce {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: translateX(-15px) scale(0.98);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(100%) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: particle 1.8s ease-out forwards;
+  z-index: 10001;
+}
+
+.particle.phone {
+  background: #00ff88;
+  box-shadow: 0 0 8px #00ff88;
+}
+
+.particle.email {
+  background: #ff6b6b;
+  box-shadow: 0 0 8px #ff6b6b;
+}
+
+@keyframes particle {
+  0% {
+    transform: scale(1) translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.2) translate(var(--dx), var(--dy));
+    opacity: 0;
+  }
+}
+
+.notification:hover {
+  transform: translateX(-5px) scale(1.02);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.1), 0 0 60px currentColor;
+}
