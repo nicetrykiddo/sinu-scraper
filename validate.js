@@ -1,20 +1,60 @@
+import { CONFIG } from "./env-config.js";
+
 async function validate(parameter, type) {
+  if (!parameter || typeof parameter !== "string") {
+    throw new Error("Invalid parameter provided");
+  }
+
   let url;
   if (type === "email") {
-    url = `https://services.postcodeanywhere.co.uk/EmailValidation/Interactive/Validate/v2.00/json3ex.ws?key=KJ99-ZE59-WN19-XC15&email=${parameter}&timeout=5000&$cache=true&$block=true&SOURCE=PCA-SCRIPT&SESSION=0bd583e1-aced-7f33-dc90-e24cce1a5af9`;
+    url = `${CONFIG.EMAIL_VALIDATION_API.BASE_URL}?key=${
+      CONFIG.EMAIL_VALIDATION_API.KEY
+    }&email=${encodeURIComponent(parameter)}&timeout=${
+      CONFIG.CACHE_SETTINGS.TIMEOUT
+    }&$cache=${
+      CONFIG.CACHE_SETTINGS.ENABLED
+    }&$block=true&SOURCE=PCA-SCRIPT&SESSION=${
+      CONFIG.EMAIL_VALIDATION_API.SESSION
+    }`;
   } else if (type === "phone") {
-    url = `https://services.postcodeanywhere.co.uk/PhoneNumberValidation/Interactive/Validate/v2.20/json3ex.ws?key=AN88-MN92-JG47-YK63&phone=${parameter}&$cache=true&$block=true&SOURCE=PCA-SCRIPT&SESSION=11a7759d-b1d5-9c69-ad0c-404ef1b5f912`;
+    url = `${CONFIG.PHONE_VALIDATION_API.BASE_URL}?key=${
+      CONFIG.PHONE_VALIDATION_API.KEY
+    }&phone=${encodeURIComponent(parameter)}&$cache=${
+      CONFIG.CACHE_SETTINGS.ENABLED
+    }&$block=true&SOURCE=PCA-SCRIPT&SESSION=${
+      CONFIG.PHONE_VALIDATION_API.SESSION
+    }`;
   } else {
-    throw new Error(`Unknown type: ${type}`);
+    throw new Error(`Unknown validation type: ${type}`);
   }
 
-  const response = await fetch(url);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`API ERROR: ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`API ERROR: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Invalid response format from API");
+    }
+
+    return data;
+  } catch (error) {
+    console.error(
+      `Validation error for ${type} "${parameter}":`,
+      error.message
+    );
+    throw new Error(`Failed to validate ${type}: ${error.message}`);
   }
-
-  return response.json();
 }
 
 export { validate };

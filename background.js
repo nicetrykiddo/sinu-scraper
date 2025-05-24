@@ -2,12 +2,11 @@ import { validate } from "./validate.js";
 
 const EMAIL_REGEX =
   /(?:[-!#-'*+\/-9=?A-Z^-~]+(?:\.[-!#-'*+\/-9=?A-Z^-~]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}|\[(?:(?:IPv6:[A-F0-9:.]+)|(?:\d{1,3}\.){3}\d{1,3})\])/gi;
-const MAILTO_REGEX = /^mailto:/i;
 const TEL_REGEX = /<a[^>]+href=["']tel:([^"']+)["'][^>]*>/gi;
 const IND_REGEX = /(?:\+91|91|0)[\s-]?[6-9]\d{9}/g;
 
 const validationCache = new Map();
-const tabValidatedContacts = new Map();
+const tabScanState = new Map(); // stores scan state for each tab { scanning: false, pendingScan: false }
 
 async function getCachedValidation(item, type) {
   const cacheKey = `${type}:${item}`;
@@ -25,14 +24,31 @@ async function getCachedValidation(item, type) {
   }
 }
 
-async function injectNotificationSystem(tabId) {
+async function injectNotification(tabId) {
   try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => !!window.notificationSystem,
+    });
+    if (results && results[0] && results[0].result) {
+      return;
+    }
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ["content-scripts/notifications.js"],
     });
   } catch (error) {
-    console.error("Error injecting notification system:", error);
+    if (
+      error.message.includes("Cannot access a chrome:// URL") ||
+      error.message.includes("Cannot access a chrome-extension:// URL")
+    ) {
+    } else if (error.message.includes("No tab with id")) {
+    } else {
+      console.error(
+        `Failed to inject notification script in tab ${tabId}:`,
+        error
+      );
+    }
   }
 }
 
@@ -67,119 +83,117 @@ function getPhones(pageContent) {
   return [[...new Set(telNums)], [...new Set(indNums)]];
 }
 
-async function scanPage(tabId) {
+async function scanPage(tabId, isMutationScan = false) {
+  if (!tabId) {
+    return;
+  }
+
+  let currentScanState = tabScanState.get(tabId) || {
+    scanning: false,
+    pendingScan: false,
+  };
+
+  if (currentScanState.scanning) {
+    currentScanState.pendingScan = true;
+    tabScanState.set(tabId, currentScanState);
+    return;
+  }
+
+  currentScanState.scanning = true;
+  tabScanState.set(tabId, currentScanState);
+
   try {
-    console.log(`Scanning page for tab ${tabId}`);
-    const content = await getPageContent(tabId);
-    if (!content) {
-      console.log(`No content found for tab ${tabId}`);
+    await injectNotification(tabId);
+
+    const pageContent = await getPageContent(tabId);
+    if (!pageContent) {
       return;
     }
 
-    if (!tabValidatedContacts.has(tabId)) {
-      tabValidatedContacts.set(tabId, { emails: new Set(), phones: new Set() });
-    }
-    const tabContacts = tabValidatedContacts.get(tabId);
+    const [mailtoEmails, regexEmails] = getEmails(pageContent);
+    const [telPhones, indPhones] = getPhones(pageContent);
+    const allEmails = [...new Set([...mailtoEmails, ...regexEmails])];
+    const allPhones = [...new Set([...telPhones, ...indPhones])];
 
-    const [autoEmails, regexEmails] = getEmails(content);
-    const [autoPhones, regexPhones] = getPhones(content);
+    const validatedEmailsFromDOM = [];
+    const validatedPhonesFromDOM = [];
 
-    const allEmails = [...new Set([...autoEmails, ...regexEmails])];
-    const allPhones = [...new Set([...autoPhones, ...regexPhones])];
-
-    const newEmails = allEmails.filter(
-      (email) => !tabContacts.emails.has(email)
-    );
-    const newPhones = allPhones.filter(
-      (phone) => !tabContacts.phones.has(phone)
-    );
-
-    if (newEmails.length === 0 && newPhones.length === 0) {
-      console.log("No new contacts found");
-      return;
-    }
-
-    console.log(`New emails to validate: ${newEmails}`);
-    console.log(`New phones to validate: ${newPhones}`);
-
-    const validatedEmails = [];
-    const validatedPhones = [];
-
-    for (const email of newEmails) {
-      try {
-        if (autoEmails.includes(email)) {
-          validatedEmails.push(email);
-          tabContacts.emails.add(email);
-          console.log(`Auto-validated email: ${email}`);
+    const validateAndNotify = async (item, type) => {
+      const validationResult = await getCachedValidation(item, type);
+      if (
+        (type === "email" &&
+          validationResult?.Items?.[0]?.ResponseCode === "Valid") ||
+        (type === "phone" && validationResult?.Items?.[0]?.IsValid === "Yes")
+      ) {
+        if (type === "email") {
+          validatedEmailsFromDOM.push(item);
         } else {
-          console.log(`Validating email: ${email}`);
-          const result = await getCachedValidation(email, "email");
-          if (result?.Items?.[0]?.ResponseCode === "Valid") {
-            const validEmail = result.Items[0].EmailAddress;
-            validatedEmails.push(validEmail);
-            tabContacts.emails.add(validEmail);
-            console.log(`Validated email: ${validEmail}`);
-          } else {
-            console.log(`Email validation failed for: ${email}`);
-          }
+          validatedPhonesFromDOM.push(item);
         }
-      } catch (error) {
-        console.error(`Error validating email ${email}:`, error);
-      }
-    }
 
-    for (const phone of newPhones) {
-      try {
-        if (autoPhones.includes(phone)) {
-          validatedPhones.push(phone);
-          tabContacts.phones.add(phone);
-          console.log(`Auto-validated phone: ${phone}`);
-        } else {
-          console.log(`Validating phone: ${phone}`);
-          const result = await getCachedValidation(phone, "phone");
-          if (result?.Items?.[0]?.IsValid === "Yes") {
-            const validPhone = result.Items[0].PhoneNumber;
-            validatedPhones.push(validPhone);
-            tabContacts.phones.add(validPhone);
-            console.log(`Validated phone: ${validPhone}`);
-          } else {
-            console.log(`Phone validation failed for: ${phone}`);
-          }
+        try {
+          chrome.tabs.sendMessage(tabId, {
+            action: "showValidatedContacts",
+            emails: type === "email" ? [item] : [],
+            phones: type === "phone" ? [item] : [],
+          });
+        } catch (error) {
+          console.error(
+            `Error sending immediate notification for ${item}:`,
+            error
+          );
         }
-      } catch (error) {
-        console.error(`Error validating phone ${phone}:`, error);
       }
-    }
+    };
 
-    console.log(`Final validated emails: ${validatedEmails}`);
-    console.log(`Final validated phones: ${validatedPhones}`);
+    const validationPromises = [
+      ...allEmails.map((email) => validateAndNotify(email, "email")),
+      ...allPhones.map((phone) => validateAndNotify(phone, "phone")),
+    ];
 
-    if (validatedEmails.length > 0 || validatedPhones.length > 0) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          func: (emails, phones) => {
-            if (window.notificationSystem) {
-              console.log("Showing notifications for:", { emails, phones });
-              window.notificationSystem.showValidated(emails, phones);
-            } else {
-              console.log("Notification system not found");
-            }
-          },
-          args: [validatedEmails, validatedPhones],
-        });
-      } catch (error) {
-        console.error("Error showing notifications:", error);
-      }
-    } else {
-      console.log("No validated contacts to show notifications for");
+    await Promise.all(validationPromises);
+    if (
+      validatedEmailsFromDOM.length > 0 ||
+      validatedPhonesFromDOM.length > 0
+    ) {
+      const storedContacts = await chrome.storage.local.get([
+        `contacts_${tabId}`,
+      ]);
+      const existingContacts = storedContacts[`contacts_${tabId}`] || {
+        emails: [],
+        phones: [],
+      };
+
+      const updatedEmails = [
+        ...new Set([...existingContacts.emails, ...validatedEmailsFromDOM]),
+      ];
+      const updatedPhones = [
+        ...new Set([...existingContacts.phones, ...validatedPhonesFromDOM]),
+      ];
+
+      await chrome.storage.local.set({
+        [`contacts_${tabId}`]: {
+          emails: updatedEmails,
+          phones: updatedPhones,
+        },
+      });
     }
   } catch (error) {
     console.error(`Error scanning page for tab ${tabId}:`, error);
+  } finally {
+    currentScanState = tabScanState.get(tabId) || {
+      scanning: false,
+      pendingScan: false,
+    };
+    currentScanState.scanning = false;
+    if (currentScanState.pendingScan) {
+      currentScanState.pendingScan = false;
+      tabScanState.set(tabId, currentScanState);
+      scanPage(tabId, true);
+    }
+    tabScanState.set(tabId, currentScanState);
   }
 }
-
-const activeTabScans = new Map();
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (
@@ -188,22 +202,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     !tab.url.startsWith("chrome://") &&
     !tab.url.startsWith("chrome-extension://")
   ) {
-    console.log(`Tab updated: ${tab.url}`);
-
-    try {
-      if (activeTabScans.has(tabId)) {
-        clearInterval(activeTabScans.get(tabId));
-      }
-
-      await injectNotificationSystem(tabId);
-
-      setTimeout(() => scanPage(tabId), 1000);
-
-      const intervalId = setInterval(() => scanPage(tabId), 5000);
-      activeTabScans.set(tabId, intervalId);
-    } catch (error) {
-      console.error(`Error setting up tab monitoring for ${tabId}:`, error);
-    }
+    await scanPage(tabId);
+  } else if (changeInfo.status === "loading") {
+    tabScanState.delete(tabId);
   }
 });
 
@@ -215,43 +216,71 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       !tab.url.startsWith("chrome://") &&
       !tab.url.startsWith("chrome-extension://")
     ) {
-      console.log(`Tab activated: ${tab.url}`);
-      await injectNotificationSystem(activeInfo.tabId);
-      setTimeout(() => scanPage(activeInfo.tabId), 500);
+      await scanPage(activeInfo.tabId);
     }
   } catch (error) {
-    console.error(
-      `Error handling tab activation for ${activeInfo.tabId}:`,
-      error
-    );
+    console.error("Error in onActivated listener:", error);
   }
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (activeTabScans.has(tabId)) {
-    clearInterval(activeTabScans.get(tabId));
-    activeTabScans.delete(tabId);
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  if (tabScanState.has(tabId)) {
+    tabScanState.delete(tabId);
   }
-  if (tabValidatedContacts.has(tabId)) {
-    tabValidatedContacts.delete(tabId);
-  }
+  await chrome.storage.local.remove([`contacts_${tabId}`]);
 });
 
-// Message handler for popup requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getValidatedContacts") {
-    const tabId = message.tabId;
-    const tabContacts = tabValidatedContacts.get(tabId);
-
-    if (tabContacts) {
-      sendResponse({
-        emails: Array.from(tabContacts.emails),
-        phones: Array.from(tabContacts.phones),
+    if (sender.tab && sender.tab.id) {
+      chrome.storage.local.get([`contacts_${sender.tab.id}`], (result) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error retrieving contacts from storage:",
+            chrome.runtime.lastError.message
+          );
+          sendResponse({ emails: [], phones: [] });
+          return;
+        }
+        const contacts = result[`contacts_${sender.tab.id}`] || {
+          emails: [],
+          phones: [],
+        };
+        sendResponse(contacts);
       });
     } else {
-      sendResponse({ emails: [], phones: [] });
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs.length > 0 && tabs[0].id) {
+          chrome.storage.local.get([`contacts_${tabs[0].id}`], (result) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Error retrieving contacts for active tab:",
+                chrome.runtime.lastError.message
+              );
+              sendResponse({ emails: [], phones: [] });
+              return;
+            }
+            const contacts = result[`contacts_${tabs[0].id}`] || {
+              emails: [],
+              phones: [],
+            };
+            sendResponse(contacts);
+          });
+        } else {
+          console.warn(
+            "Background: Could not determine active tab for getValidatedContacts."
+          );
+          sendResponse({ emails: [], phones: [] });
+        }
+      });
     }
-
-    return true; // Keep the message channel open for async response
+    return true;
+  } else if (message.action === "domMutationObserved") {
+    if (sender.tab && sender.tab.id) {
+      scanPage(sender.tab.id, true);
+    }
+    sendResponse({ status: "Mutation received" });
+    return true;
   }
+  return false;
 });
