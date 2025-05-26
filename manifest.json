@@ -27,7 +27,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["styles/notifications.css"],
+      "resources": ["styles/notifications.css", "keywords.txt"],
       "matches": ["<all_urls>"]
     }
   ]

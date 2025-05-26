@@ -10,14 +10,23 @@
       <div class="header">
         <h1>Contact Extractor</h1>
       </div>
-
-      <h2>Email Addresses</h2>
+      <div class="settings-section">
+        <label class="toggle-switch">
+          <input type="checkbox" id="highlight-toggle" checked />
+          <span class="slider"></span>
+          <span class="toggle-label">Highlight links</span>
+        </label>
+      </div>
+      <h2>Emails <span class="count">0</span></h2>
       <ul id="email-list"></ul>
-
-      <h2>Phone Numbers</h2>
+      <h2>Phones <span class="count">0</span></h2>
       <ul id="phone-list"></ul>
+      <h2>Contact Links <span class="count">0</span></h2>
+      <div class="list-container">
+        <ul id="link-list"></ul>
+      </div>
+      <div id="link-count">Found 0 links</div>
     </div>
-
     <script type="module" src="popup.js"></script>
   </body>
 </html>

@@ -2,7 +2,6 @@ import { CONFIG } from "./env-config.js";
 
 async function validate(parameter, type) {
   if (!parameter || typeof parameter !== "string") {
-    throw new Error("Invalid parameter provided");
   }
 
   let url;
@@ -25,7 +24,6 @@ async function validate(parameter, type) {
       CONFIG.PHONE_VALIDATION_API.SESSION
     }`;
   } else {
-    throw new Error(`Unknown validation type: ${type}`);
   }
 
   try {
@@ -38,23 +36,15 @@ async function validate(parameter, type) {
     });
 
     if (!response.ok) {
-      throw new Error(`API ERROR: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
 
     if (!data || typeof data !== "object") {
-      throw new Error("Invalid response format from API");
     }
 
     return data;
-  } catch (error) {
-    console.error(
-      `Validation error for ${type} "${parameter}":`,
-      error.message
-    );
-    throw new Error(`Failed to validate ${type}: ${error.message}`);
-  }
+  } catch (error) {}
 }
 
 export { validate };

@@ -1,174 +1,198 @@
 (() => {
-  let cachedContacts = null;
-  let currentTabId = null;
+  let cache = null;
+  let tabId = null;
 
-  function displayContacts(emails, phones) {
-    const emailListElement = document.getElementById("email-list");
-    const phoneListElement = document.getElementById("phone-list");
+  function display(emails, phones, links) {
+    // elements
+    const emailEl = document.getElementById("email-list");
+    const phoneEl = document.getElementById("phone-list");
+    const linkEl = document.getElementById("link-list");
 
-    if (!emailListElement || !phoneListElement) {
-      console.error("Required DOM elements not found");
-      return;
+    if (!emailEl || !phoneEl || !linkEl) return;
+
+    emailEl.innerHTML = "";
+    phoneEl.innerHTML = "";
+    linkEl.innerHTML = "";
+
+    const emailH = document.querySelector("h2:nth-of-type(1)");
+    if (emailH) {
+      const count = emailH.querySelector(".count");
+      if (count) count.textContent = Array.isArray(emails) ? emails.length : 0;
     }
-
-    emailListElement.innerHTML = "";
-    phoneListElement.innerHTML = "";
-    const emailHeader = document.querySelector("h2:first-of-type");
-    if (emailHeader) {
-      const emailCount = Array.isArray(emails) ? emails.length : 0;
-      // Use textContent for safety, then add count span
-      emailHeader.textContent = "Email Addresses ";
-      const countSpan = document.createElement("span");
-      countSpan.className = "count";
-      countSpan.textContent = String(emailCount);
-      emailHeader.appendChild(countSpan);
-    }
-
-    const phoneHeader = document.querySelector("h2:last-of-type");
-    if (phoneHeader) {
-      const phoneCount = Array.isArray(phones) ? phones.length : 0;
-      // Use textContent for safety, then add count span
-      phoneHeader.textContent = "Phone Numbers ";
-      const countSpan = document.createElement("span");
-      countSpan.className = "count";
-      countSpan.textContent = String(phoneCount);
-      phoneHeader.appendChild(countSpan);
-    }
-
     if (Array.isArray(emails) && emails.length > 0) {
       emails.forEach((email) => {
         const li = document.createElement("li");
-        li.textContent = String(email);
-        li.addEventListener("click", () => copyToClipboard(String(email)));
-        emailListElement.appendChild(li);
+        li.textContent = email;
+        li.addEventListener("click", () => copy(email, "Email"));
+        emailEl.appendChild(li);
       });
     } else {
-      const li = document.createElement("li");
-      li.textContent = "No emails found on this page";
-      li.className = "no-contacts";
-      emailListElement.appendChild(li);
+      emailEl.appendChild(noDataLi("No emails found"));
     }
 
+    const phoneH = document.querySelector("h2:nth-of-type(2)");
+    if (phoneH) {
+      const count = phoneH.querySelector(".count");
+      if (count) count.textContent = Array.isArray(phones) ? phones.length : 0;
+    }
     if (Array.isArray(phones) && phones.length > 0) {
       phones.forEach((phone) => {
         const li = document.createElement("li");
-        li.textContent = String(phone);
-        li.addEventListener("click", () => copyToClipboard(String(phone)));
-        phoneListElement.appendChild(li);
+        li.textContent = phone;
+        li.addEventListener("click", () => copy(phone, "Phone"));
+        phoneEl.appendChild(li);
       });
     } else {
-      const li = document.createElement("li");
-      li.textContent = "No phone numbers found on this page";
-      li.className = "no-contacts";
-      phoneListElement.appendChild(li);
+      phoneEl.appendChild(noDataLi("No phone numbers found"));
+    }
+
+    const linkH = document.querySelector("h2:nth-of-type(3)");
+    const linkCount = document.getElementById("link-count");
+
+    if (linkH) {
+      const count = linkH.querySelector(".count");
+      if (count) count.textContent = Array.isArray(links) ? links.length : 0;
+    }
+    if (linkCount) {
+      linkCount.textContent = `Found ${
+        Array.isArray(links) ? links.length : 0
+      } links`;
+    }
+
+    if (Array.isArray(links) && links.length > 0) {
+      links.forEach((lnk) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = lnk.url;
+        a.textContent = lnk.text || lnk.url;
+        a.title = `URL: ${lnk.url}\nKeywords: ${lnk.matchedKeywords.join(
+          ", "
+        )}`;
+        a.target = "_blank";
+        li.appendChild(a);
+        linkEl.appendChild(li);
+      });
+    } else {
+      linkEl.appendChild(noDataLi("No contact links found"));
     }
   }
 
-  async function copyToClipboard(text) {
+  function noDataLi(txt) {
+    const li = document.createElement("li");
+    li.textContent = txt;
+    li.className = "no-contacts";
+    return li;
+  }
+
+  async function copy(txt, type = "Text") {
     try {
-      await navigator.clipboard.writeText(text);
-      showToast(`Copied: ${text}`);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-      showToast("Failed to copy to clipboard");
+      await navigator.clipboard.writeText(txt);
+      toast(`${type} copied: ${txt}`);
+    } catch (e) {
+      toast("Failed to copy");
     }
   }
 
-  function showToast(message) {
-    const existingToast = document.querySelector(".toast");
-    if (existingToast) {
-      existingToast.remove();
-    }
+  function toast(msg) {
+    const oldToast = document.querySelector(".toast");
+    if (oldToast) oldToast.remove();
 
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    setTimeout(() => toast.classList.add("show"), 100);
+    const el = document.createElement("div");
+    el.className = "toast show";
+    el.textContent = msg;
+    document.body.appendChild(el);
 
     setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.remove(), 300);
+      el.classList.remove("show");
+      setTimeout(() => el.remove(), 300);
     }, 2000);
   }
-  async function getCurrentTabContacts() {
+
+  async function getData() {
     try {
-      if (cachedContacts && currentTabId) {
-        return cachedContacts;
-      }
+      const tabs = await new Promise((res) =>
+        chrome.tabs.query({ active: true, currentWindow: true }, res)
+      );
+      if (!tabs || tabs.length === 0 || !tabs[0].id)
+        return { emails: [], phones: [], links: [] };
+      tabId = tabs[0].id;
 
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (!tabs || tabs.length === 0) {
-        return { emails: [], phones: [] };
-      }
-
-      const tabId = tabs[0].id;
-      if (currentTabId !== tabId) {
-        cachedContacts = null;
-        currentTabId = tabId;
-      }
-
-      if (cachedContacts) {
-        return cachedContacts;
-      }
-
-      const response = await chrome.runtime.sendMessage({
-        action: "getValidatedContacts",
-      });
-
-      const result = response || {};
-      cachedContacts = {
-        emails: Array.isArray(result.emails) ? result.emails : [],
-        phones: Array.isArray(result.phones) ? result.phones : [],
-      };
-
-      return cachedContacts;
-    } catch (error) {
-      console.error("Error getting validated contacts from background:", error);
-      if (error.message.includes("Receiving end does not exist")) {
-        showToast(
-          "Extension service is initializing. Please try again shortly."
-        );
-      }
-      return { emails: [], phones: [] };
-    }
-  }
-  async function refreshContacts() {
-    cachedContacts = null;
-    const contacts = await getCurrentTabContacts();
-    displayContacts(contacts.emails, contacts.phones);
-  }
-  async function init() {
-    await refreshContacts();
-  }
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local") {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Error querying tabs:",
-            chrome.runtime.lastError.message
-          );
-          return;
-        }
-        if (tabs && tabs.length > 0) {
-          const activeTabId = tabs[0].id;
-          if (changes[`contacts_${activeTabId}`]) {
-            cachedContacts = null;
-            refreshContacts();
+      const contacts = await new Promise((res) => {
+        chrome.runtime.sendMessage(
+          { action: "getValidatedContacts" },
+          (resp) => {
+            if (chrome.runtime.lastError) res({ emails: [], phones: [] });
+            else res(resp || { emails: [], phones: [] });
           }
-        }
+        );
       });
+
+      const linkKey = `contactLinks_${tabId}`;
+      const linkStore = await new Promise((res) => {
+        chrome.storage.local.get(linkKey, (result) => {
+          if (chrome.runtime.lastError) res({});
+          else res(result);
+        });
+      });
+
+      const links = linkStore[linkKey]?.links || [];
+      cache = {
+        emails: contacts.emails || [],
+        phones: contacts.phones || [],
+        links,
+      };
+      return cache;
+    } catch (e) {
+      return { emails: [], phones: [], links: [] };
     }
-  });
+  }
+
+  async function refresh() {
+    const data = await getData();
+    display(data.emails, data.phones, data.links);
+  }
+
+  function initPopup() {
+    refresh();
+    setupToggle();
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && tabId) {
+        const contactsKey = `contacts_${tabId}`;
+        const linksKey = `contactLinks_${tabId}`;
+        if (changes[contactsKey] || changes[linksKey]) refresh();
+      }
+    });
+  }
+
+  function setupToggle() {
+    const toggle = document.getElementById("highlight-toggle");
+    if (!toggle) return;
+
+    chrome.storage.local.get(["highlightEnabled"], (res) => {
+      toggle.checked = res.highlightEnabled !== false;
+    });
+
+    toggle.addEventListener("change", async () => {
+      const enabled = toggle.checked;
+      await chrome.storage.local.set({ highlightEnabled: enabled });
+      try {
+        const tabs = await new Promise((res) =>
+          chrome.tabs.query({ active: true, currentWindow: true }, res)
+        );
+        if (tabs && tabs.length > 0 && tabs[0].id) {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            action: "toggleHighlighting",
+            enabled,
+          });
+        }
+      } catch (e) {}
+    });
+  }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", initPopup);
   } else {
-    init();
+    initPopup();
   }
 })();
