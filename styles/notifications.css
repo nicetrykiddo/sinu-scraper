@@ -14,23 +14,14 @@
 }
 
 .notification {
-  background: #0a0a0a;
-  border: 1.5px solid;
-  border-radius: 12px;
-  padding: 18px 20px;
-  color: #ffffff;
-  font-family: "JetBrains Mono", "SF Mono", "Monaco", "Inconsolata", "Fira Code",
-    monospace;
-  font-size: 15px;
-  font-weight: 500;
-  width: 320px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+  padding: 15px;
   position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(20px);
-  transform: translateX(100%) scale(0.9);
-  opacity: 0;
-  animation: slideInBounce 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-  transition: all 0.3s ease;
+  width: 300px;
+  animation: slideIn 0.3s ease-out;
 }
 
 .notification.phone {
@@ -66,110 +57,100 @@
 }
 
 .notification-title {
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-weight: bold;
   margin-bottom: 8px;
-  opacity: 0.8;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.notification-title::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 10px currentColor;
-  animation: pulse 2s infinite;
 }
 
 .notification-content {
+  margin-bottom: 12px;
   word-break: break-all;
-  line-height: 1.5;
-  font-weight: 400;
-  margin-right: 35px;
-  font-size: 14px;
-  opacity: 0.95;
 }
 
-.notification.fadeOut {
-  animation: slideOutBounce 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards;
+.save-to-dashboard-btn {
+  background: #4CAF50;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 12px;
+  transition: all 0.3s ease;
+  width: 100%;
 }
 
-@keyframes slideInBounce {
-  0% {
-    transform: translateX(100%) scale(0.9);
+.save-to-dashboard-btn:hover {
+  background: #45a049;
+}
+
+.save-to-dashboard-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.save-to-dashboard-btn.saved {
+  background: #2196F3;
+}
+
+.save-to-dashboard-btn.error {
+  background: #f44336;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
     opacity: 0;
   }
-  60% {
-    transform: translateX(-8px) scale(1.02);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(0) scale(1);
+
+  to {
+    transform: translateX(0);
     opacity: 1;
   }
 }
 
-@keyframes slideOutBounce {
-  0% {
-    transform: translateX(0) scale(1);
+.fadeOut {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    transform: translateX(0);
     opacity: 1;
   }
-  40% {
-    transform: translateX(-15px) scale(0.98);
-    opacity: 0.8;
-  }
-  100% {
-    transform: translateX(100%) scale(0.9);
+
+  to {
+    transform: translateX(100%);
     opacity: 0;
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.8;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
   }
 }
 
 .particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
+  position: fixed;
   pointer-events: none;
-  animation: particle 1.8s ease-out forwards;
-  z-index: 10001;
-}
-
-.particle.phone {
-  background: #00ff88;
-  box-shadow: 0 0 8px #00ff88;
+  z-index: 9999;
+  animation: particleAnimation 1.8s ease-out forwards;
 }
 
 .particle.email {
-  background: #ff6b6b;
-  box-shadow: 0 0 8px #ff6b6b;
+  background: radial-gradient(circle, #4CAF50 0%, transparent 70%);
 }
 
-@keyframes particle {
+.particle.phone {
+  background: radial-gradient(circle, #2196F3 0%, transparent 70%);
+}
+
+@keyframes particleAnimation {
   0% {
-    transform: scale(1) translate(0, 0);
+    transform: translate(0, 0);
     opacity: 1;
+    width: 10px;
+    height: 10px;
   }
+
   100% {
-    transform: scale(0.2) translate(var(--dx), var(--dy));
+    transform: translate(var(--dx), var(--dy));
     opacity: 0;
+    width: 0;
+    height: 0;
   }
 }
 

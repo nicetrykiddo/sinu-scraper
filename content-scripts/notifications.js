@@ -110,11 +110,48 @@ class NotificationSystem {
     });
 
     notification.innerHTML = `
-      <div class="notification-title">${
-        type === "email" ? "📧 New Email" : "📞 New Phone"
+      <div class="notification-title">${type === "email" ? "📧 New Email" : "📞 New Phone"
       }</div>
       <div class="notification-content">${sanitizedContent}</div>
+      <button class="save-to-dashboard-btn" data-type="${type}" data-value="${sanitizedContent}">
+        Save to Dashboard
+      </button>
     `;
+
+    // Add click handler for the save button
+    const saveButton = notification.querySelector('.save-to-dashboard-btn');
+    saveButton.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const button = e.target;
+      const type = button.dataset.type;
+      const value = button.dataset.value;
+
+      try {
+        button.disabled = true;
+        button.textContent = 'Saving...';
+
+        const response = await chrome.runtime.sendMessage({
+          action: 'saveToDashboard',
+          data: {
+            type,
+            value,
+            sourceUrl: window.location.href
+          }
+        });
+
+        if (response.success) {
+          button.textContent = 'Saved!';
+          button.classList.add('saved');
+        } else {
+          button.textContent = 'Save Failed';
+          button.classList.add('error');
+        }
+      } catch (error) {
+        console.error('Error saving to dashboard:', error);
+        button.textContent = 'Save Failed';
+        button.classList.add('error');
+      }
+    });
 
     this.container.appendChild(notification);
     this.activeNotifications.push(notification);

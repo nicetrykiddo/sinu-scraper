@@ -33,7 +33,7 @@ async function injectNotify(tabId) {
       target: { tabId },
       files: ["content-scripts/notifications.js"],
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function injectNav(tabId) {
@@ -118,7 +118,7 @@ async function scan(tabId, isMut = false) {
             emails: type === "email" ? [item] : [],
             phones: type === "phone" ? [item] : [],
           });
-        } catch (e) {}
+        } catch (e) { }
       }
     };
 
@@ -176,7 +176,7 @@ chrome.tabs.onActivated.addListener(async (active) => {
     ) {
       await scan(active.tabId);
     }
-  } catch (e) {}
+  } catch (e) { }
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -217,7 +217,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendRes) => {
     }
     return true;
   } else if (msg.action === "domMutationObserved") {
-    if (sender.tab?.id) scan(sender.tab.id, true);
+    if (sender.tab?.id) {
+      // Check server status when mutation is observed
+      fetch('http://localhost:3000/start')
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            scan(sender.tab.id, true);
+          }
+        })
+        .catch(error => {
+          console.error('Server status check failed:', error);
+        });
+    }
     sendRes({ status: "Mutation received" });
     return true;
   } else if (msg.action === "storeContactLinks") {
@@ -236,6 +248,62 @@ chrome.runtime.onMessage.addListener((msg, sender, sendRes) => {
     } else {
       sendRes({ success: false, error: "Invalid message payload" });
     }
+    return true;
+  } else if (msg.action === "saveToDashboard") {
+    if (msg.data && msg.data.type && msg.data.value && msg.data.sourceUrl) {
+      // Add website metadata
+      const contactData = {
+        ...msg.data,
+        website: {
+          url: msg.data.sourceUrl,
+          title: sender.tab?.title || '',
+          favicon: sender.tab?.favIconUrl || ''
+        }
+      };
+
+      // Save to MongoDB via API
+      fetch('http://localhost:3000/rest/api/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactData)
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            sendRes({ success: true, data: data.data });
+          } else {
+            sendRes({ success: false, error: data.error || 'Failed to save contact' });
+          }
+        })
+        .catch(error => {
+          console.error('Error saving to MongoDB:', error);
+          sendRes({ success: false, error: error.message });
+        });
+    } else {
+      sendRes({ success: false, error: "Invalid contact data" });
+    }
+    return true;
+  } else if (msg.action === "getSavedContacts") {
+    const type = msg.type; // Optional type filter
+    const url = type
+      ? `http://localhost:3000/rest/api/contacts/${type}`
+      : 'http://localhost:3000/rest/api/contacts';
+
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          sendRes({ success: true, data: data.data });
+        } else {
+          sendRes({ success: false, error: data.error });
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching contacts:', error);
+        sendRes({ success: false, error: error.message });
+      });
     return true;
   }
   return false;
