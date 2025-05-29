@@ -16,15 +16,26 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Contact Schema
 const contactSchema = new mongoose.Schema({
-    type: { type: String, enum: ['email', 'phone'], required: true },
-    value: { type: String, required: true },
-    sourceUrl: { type: String, required: true },
-    website: {
-        url: String,
-        title: String,
-        favicon: String
+    sourceUrl: {
+        type: String,
+        required: true,
+        index: true
     },
-    savedAt: { type: Date, default: Date.now }
+    phone: [{
+        type: String
+    }],
+    email: [{
+        type: String
+    }],
+    otherLinks: [{
+        url: String,
+        text: String,
+        matchedKeywords: [String]
+    }],
+    savedAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 const Contact = mongoose.model('Contact', contactSchema);
@@ -41,24 +52,49 @@ app.get('/start', (req, res) => {
 // Save contact to dashboard
 app.post('/rest/api/contacts', async (req, res) => {
     try {
-        const { type, value, sourceUrl, website } = req.body;
+        console.log('Received data:', req.body);
+        const { sourceUrl, phone, email, otherLinks } = req.body;
 
-        if (!type || !value || !sourceUrl) {
+        if (!sourceUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields'
+                error: 'Missing sourceUrl'
             });
         }
 
-        const contact = new Contact({
-            type,
-            value,
+        // Format the data
+        const formattedData = {
             sourceUrl,
-            website,
-            savedAt: new Date()
-        });
+            phone: Array.isArray(phone) ? phone : [],
+            email: Array.isArray(email) ? email : [],
+            otherLinks: Array.isArray(otherLinks) ? otherLinks : []
+        };
+
+        console.log('Formatted data:', formattedData);
+
+        // Check if entry already exists for this URL
+        let contact = await Contact.findOne({ sourceUrl });
+
+        if (contact) {
+            // Update existing entry
+            if (formattedData.phone.length > 0) {
+                contact.phone = [...new Set([...contact.phone, ...formattedData.phone])];
+            }
+            if (formattedData.email.length > 0) {
+                contact.email = [...new Set([...contact.email, ...formattedData.email])];
+            }
+            if (formattedData.otherLinks.length > 0) {
+                contact.otherLinks = [...contact.otherLinks, ...formattedData.otherLinks];
+            }
+            contact.savedAt = new Date();
+        } else {
+            // Create new entry
+            contact = new Contact(formattedData);
+        }
 
         await contact.save();
+        console.log('Saved contact:', contact);
+
         res.status(201).json({
             success: true,
             data: contact
@@ -67,7 +103,7 @@ app.post('/rest/api/contacts', async (req, res) => {
         console.error('Error saving contact:', error);
         res.status(500).json({
             success: false,
-            error: 'Internal server error'
+            error: error.message || 'Internal server error'
         });
     }
 });
@@ -92,20 +128,24 @@ app.get('/rest/api/contacts', async (req, res) => {
     }
 });
 
-// Get contacts by type
-app.get('/rest/api/contacts/:type', async (req, res) => {
+// Get contact by URL
+app.get('/rest/api/contacts/url/:url', async (req, res) => {
     try {
-        const { type } = req.params;
-        const contacts = await Contact.find({ type })
-            .sort({ savedAt: -1 })
-            .limit(100);
+        const contact = await Contact.findOne({ sourceUrl: req.params.url });
+
+        if (!contact) {
+            return res.status(404).json({
+                success: false,
+                error: 'Contact not found'
+            });
+        }
 
         res.json({
             success: true,
-            data: contacts
+            data: contact
         });
     } catch (error) {
-        console.error('Error fetching contacts:', error);
+        console.error('Error fetching contact:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error'

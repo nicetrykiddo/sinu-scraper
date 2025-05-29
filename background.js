@@ -187,39 +187,101 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   ]);
 });
 
-chrome.runtime.onMessage.addListener((msg, sender, sendRes) => {
-  if (msg.action === "getValidatedContacts") {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Background received message:', request);
+
+  if (request.action === 'saveToDashboard') {
+    console.log('Attempting to save to dashboard:', request.data);
+
+    // Validate the data
+    if (!request.data.sourceUrl) {
+      console.error('Missing sourceUrl in save request');
+      sendResponse({ success: false, error: 'Missing sourceUrl' });
+      return true;
+    }
+
+    // Ensure arrays are properly formatted
+    const data = {
+      sourceUrl: request.data.sourceUrl,
+      phone: Array.isArray(request.data.phone) ? request.data.phone : [],
+      email: Array.isArray(request.data.email) ? request.data.email : [],
+      otherLinks: Array.isArray(request.data.otherLinks) ? request.data.otherLinks : []
+    };
+
+    console.log('Formatted data for saving:', data);
+
+    // Make the API call
+    fetch('https://sinu-scraper.onrender.com/rest/api/contacts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    })
+      .then(response => {
+        console.log('Server response status:', response.status);
+        return response.json();
+      })
+      .then(result => {
+        console.log('Server response:', result);
+        if (result.success) {
+          // Store in local storage for quick access
+          const storageKey = `contacts_${sender.tab.id}`;
+          chrome.storage.local.get([storageKey], (res) => {
+            const existingData = res[storageKey] || { emails: [], phones: [] };
+            const newData = {
+              emails: [...new Set([...existingData.emails, ...data.email])],
+              phones: [...new Set([...existingData.phones, ...data.phone])]
+            };
+            chrome.storage.local.set({ [storageKey]: newData });
+          });
+          sendResponse({ success: true, data: result.data });
+        } else {
+          console.error('Server returned error:', result.error);
+          sendResponse({ success: false, error: result.error });
+        }
+      })
+      .catch(error => {
+        console.error('Error saving to dashboard:', error);
+        sendResponse({
+          success: false,
+          error: 'Failed to connect to server. Make sure the server is running at https://sinu-scraper.onrender.com'
+        });
+      });
+
+    return true; // Keep the message channel open for async response
+  } else if (request.action === "getValidatedContacts") {
     const id = sender.tab?.id;
     if (id) {
       chrome.storage.local.get([`contacts_${id}`], (res) => {
         if (chrome.runtime.lastError) {
-          sendRes({ emails: [], phones: [] });
+          sendResponse({ emails: [], phones: [] });
           return;
         }
-        sendRes(res[`contacts_${id}`] || { emails: [], phones: [] });
+        sendResponse(res[`contacts_${id}`] || { emails: [], phones: [] });
       });
     } else {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs && tabs.length > 0 && tabs[0].id) {
           chrome.storage.local.get([`contacts_${tabs[0].id}`], (res) => {
             if (chrome.runtime.lastError) {
-              sendRes({ emails: [], phones: [] });
+              sendResponse({ emails: [], phones: [] });
               return;
             }
-            sendRes(
+            sendResponse(
               res[`contacts_${tabs[0].id}`] || { emails: [], phones: [] }
             );
           });
         } else {
-          sendRes({ emails: [], phones: [] });
+          sendResponse({ emails: [], phones: [] });
         }
       });
     }
     return true;
-  } else if (msg.action === "domMutationObserved") {
+  } else if (request.action === "domMutationObserved") {
     if (sender.tab?.id) {
       // Check server status when mutation is observed
-      fetch('http://localhost:3000/start')
+      fetch('https://sinu-scraper.onrender.com/start')
         .then(response => response.json())
         .then(data => {
           if (data.status === 'success') {
@@ -230,79 +292,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendRes) => {
           console.error('Server status check failed:', error);
         });
     }
-    sendRes({ status: "Mutation received" });
+    sendResponse({ status: "Mutation received" });
     return true;
-  } else if (msg.action === "storeContactLinks") {
-    if (sender.tab?.id && msg.links) {
+  } else if (request.action === "storeContactLinks") {
+    if (sender.tab?.id && request.links) {
       const key = `contactLinks_${sender.tab.id}`;
       const data = {
-        links: msg.links,
-        url: msg.currentUrl,
+        links: request.links,
+        url: request.currentUrl,
         timestamp: new Date().toISOString(),
       };
       chrome.storage.local.set({ [key]: data }, () => {
         if (chrome.runtime.lastError)
-          sendRes({ success: false, error: chrome.runtime.lastError.message });
-        else sendRes({ success: true });
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        else sendResponse({ success: true });
       });
     } else {
-      sendRes({ success: false, error: "Invalid message payload" });
+      sendResponse({ success: false, error: "Invalid message payload" });
     }
     return true;
-  } else if (msg.action === "saveToDashboard") {
-    if (msg.data && msg.data.type && msg.data.value && msg.data.sourceUrl) {
-      // Add website metadata
-      const contactData = {
-        ...msg.data,
-        website: {
-          url: msg.data.sourceUrl,
-          title: sender.tab?.title || '',
-          favicon: sender.tab?.favIconUrl || ''
-        }
-      };
-
-      // Save to MongoDB via API
-      fetch('http://localhost:3000/rest/api/contacts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(contactData)
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            sendRes({ success: true, data: data.data });
-          } else {
-            sendRes({ success: false, error: data.error || 'Failed to save contact' });
-          }
-        })
-        .catch(error => {
-          console.error('Error saving to MongoDB:', error);
-          sendRes({ success: false, error: error.message });
-        });
-    } else {
-      sendRes({ success: false, error: "Invalid contact data" });
-    }
-    return true;
-  } else if (msg.action === "getSavedContacts") {
-    const type = msg.type; // Optional type filter
+  } else if (request.action === "getSavedContacts") {
+    const type = request.type; // Optional type filter
     const url = type
-      ? `http://localhost:3000/rest/api/contacts/${type}`
-      : 'http://localhost:3000/rest/api/contacts';
+      ? `https://sinu-scraper.onrender.com/rest/api/contacts/${type}`
+      : 'https://sinu-scraper.onrender.com/rest/api/contacts';
 
     fetch(url)
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          sendRes({ success: true, data: data.data });
+          sendResponse({ success: true, data: data.data });
         } else {
-          sendRes({ success: false, error: data.error });
+          sendResponse({ success: false, error: data.error });
         }
       })
       .catch(error => {
         console.error('Error fetching contacts:', error);
-        sendRes({ success: false, error: error.message });
+        sendResponse({ success: false, error: error.message });
       });
     return true;
   }

@@ -54,9 +54,8 @@
       if (count) count.textContent = Array.isArray(links) ? links.length : 0;
     }
     if (linkCount) {
-      linkCount.textContent = `Found ${
-        Array.isArray(links) ? links.length : 0
-      } links`;
+      linkCount.textContent = `Found ${Array.isArray(links) ? links.length : 0
+        } links`;
     }
 
     if (Array.isArray(links) && links.length > 0) {
@@ -152,9 +151,94 @@
     display(data.emails, data.phones, data.links);
   }
 
+  async function saveToDashboard() {
+    if (!cache || !tabId) {
+      console.error('Cannot save: cache or tabId is missing', { cache, tabId });
+      return;
+    }
+
+    const saveBtn = document.getElementById('save-to-dashboard');
+    if (!saveBtn) {
+      console.error('Save button not found in DOM');
+      return;
+    }
+
+    try {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      saveBtn.classList.add('saving');
+
+      // Get current tab info
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs || tabs.length === 0) {
+        throw new Error('No active tab found');
+      }
+      const currentTab = tabs[0];
+      console.log('Current tab info:', currentTab);
+
+      // Prepare data according to new schema
+      const contactData = {
+        sourceUrl: currentTab.url,
+        phone: cache.phones || [],
+        email: cache.emails || [],
+        otherLinks: cache.links || []
+      };
+
+      console.log('Sending data to save:', contactData);
+
+      // Save to dashboard
+      const response = await chrome.runtime.sendMessage({
+        action: 'saveToDashboard',
+        data: contactData
+      });
+
+      console.log('Save response:', response);
+
+      if (response.success) {
+        saveBtn.textContent = 'Saved!';
+        saveBtn.classList.remove('saving');
+        saveBtn.classList.add('saved');
+        toast('All contacts saved successfully');
+      } else {
+        const errorMessage = response.error || 'Failed to save contacts';
+        console.error('Save failed:', errorMessage);
+        saveBtn.textContent = 'Save Failed';
+        saveBtn.classList.remove('saving');
+        saveBtn.classList.add('error');
+        toast(errorMessage);
+      }
+
+      // Reset button after 2 seconds
+      setTimeout(() => {
+        saveBtn.textContent = 'Save to Dashboard';
+        saveBtn.classList.remove('saved', 'error');
+        saveBtn.disabled = false;
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error in saveToDashboard:', error);
+      saveBtn.textContent = 'Save Failed';
+      saveBtn.classList.remove('saving');
+      saveBtn.classList.add('error');
+      toast(error.message || 'Failed to save contacts');
+
+      setTimeout(() => {
+        saveBtn.textContent = 'Save to Dashboard';
+        saveBtn.classList.remove('error');
+        saveBtn.disabled = false;
+      }, 2000);
+    }
+  }
+
   function initPopup() {
     refresh();
     setupToggle();
+
+    // Setup save to dashboard button
+    const saveBtn = document.getElementById('save-to-dashboard');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', saveToDashboard);
+    }
 
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && tabId) {
@@ -186,7 +270,7 @@
             enabled,
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     });
   }
 

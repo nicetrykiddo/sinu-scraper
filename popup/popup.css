@@ -27,6 +27,9 @@ body {
   margin-bottom: 32px;
   padding-bottom: 20px;
   border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .header h1 {
@@ -346,11 +349,11 @@ li:not(.no-contacts):hover::before {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.toggle-switch input[type="checkbox"]:checked + .slider {
+.toggle-switch input[type="checkbox"]:checked+.slider {
   background-color: #3b82f6;
 }
 
-.toggle-switch input[type="checkbox"]:checked + .slider:before {
+.toggle-switch input[type="checkbox"]:checked+.slider:before {
   transform: translateX(20px);
 }
 
@@ -358,4 +361,37 @@ li:not(.no-contacts):hover::before {
   font-size: 14px;
   font-weight: 500;
   color: #475569;
+}
+
+.save-btn {
+  background: #4CAF50;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 16px;
+  transition: all 0.3s ease;
+  margin-left: auto;
+}
+
+.save-btn:hover {
+  background: #45a049;
+}
+
+.save-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.save-btn.saving {
+  background: #2196F3;
+}
+
+.save-btn.saved {
+  background: #4CAF50;
+}
+
+.save-btn.error {
+  background: #f44336;
 }
